@@ -23,3 +23,13 @@ function getNameFromAuth() {
     });
 }
 getNameFromAuth(); //run the function
+
+function readQuote(day) {
+    db.collection("quotes").doc(day).onSnapshot(dayDoc => {
+            console.log("current document data: " + dayDoc.data());
+            document.getElementById("quote-here").innerHTML = dayDoc.data().quote;
+        }, (error) => {
+            console.log("Error calling onSnapshot, error");
+        });
+}
+readQuote("tuesday");
