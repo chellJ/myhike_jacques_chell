@@ -1,28 +1,40 @@
-function getNameFromAuth() {
+//Global variable pointing to the current user's Firestore document
+var currentUser;   
+
+//Function that calls everything needed for the main page  
+function doAll() {
     firebase.auth().onAuthStateChanged(user => {
-        // Check if a user is signed in:
         if (user) {
-            // Do something for the currently logged-in user here: 
-            console.log(user.uid); //print the uid in the browser console
-            console.log(user.displayName);  //print the user name in the browser console
-            userName = user.displayName;
+            currentUser = db.collection("users").doc(user.uid); //global
+            console.log(currentUser);
 
-            //method #1:  insert with JS
-            document.getElementById("name-goes-here").innerText = userName;    
+            // figure out what day of the week it is today
+            const weekday = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+            const d = new Date();
+            let day = weekday[d.getDay()];
 
-            //method #2:  insert using jquery
-            //$("#name-goes-here").text(userName); //using jquery
-
-            //method #3:  insert using querySelector
-            //document.querySelector("#name-goes-here").innerText = userName
-
+            // the following functions are always called when someone is logged in
+            readQuote(day);
+            getNameFromAuth();
+            displayCardsDynamically("hikes");
         } else {
             // No user is signed in.
-            console.log ("No user is logged in");
+            console.log("No user is signed in");
+            window.location.href = "login.html";
         }
     });
 }
-getNameFromAuth(); //run the function
+doAll();
+
+function getNameFromAuth() {
+    currentUser.get().then(userDoc => {
+        //get user's name
+        var userName = userDoc.data().name;
+        console.log(userName);
+        $("#name-goes-here").text(userName);
+    })
+}
+//getNameFromAuth(); //run the function
 
 function readQuote(day) {
     db.collection("quotes").doc(day).onSnapshot(dayDoc => {
@@ -32,7 +44,7 @@ function readQuote(day) {
             console.log("Error calling onSnapshot, error");
         });
 }
-readQuote("tuesday");
+//readQuote("tuesday");
 
 function writeHikes() {
     //define a variable for the collection you want to create in Firestore to populate data
@@ -85,7 +97,10 @@ function writeHikes() {
 function displayCardsDynamically(collection) {
     let cardTemplate = document.getElementById("hikeCardTemplate"); // Retrieve the HTML element with the ID "hikeCardTemplate" and store it in the cardTemplate variable. 
     
-    db.collection(collection).get()   //the collection called "hikes"
+    db.collection(collection) //the collection called "hikes"
+        .orderBy("hike_time") //sort criteria
+        //.limit(2) //how many hikes to retrieve
+        .get() //go get'em tiger
         .then(allHikes=> {
             //var i = 1;  //Optional: if you want to have a unique ID for each hike
             allHikes.forEach(doc => { //iterate thru each doc
@@ -102,10 +117,20 @@ function displayCardsDynamically(collection) {
                 newcard.querySelector('.card-text').innerHTML = details;
                 newcard.querySelector('.card-image').src = `./images/${hikeCode}.jpg`; //Example: NV01.jpg
                 newcard.querySelector('a').href = "eachHike.html?docID="+docID;
+                newcard.querySelector('i').id = 'save-' + docID;   //guaranteed to be unique
+                newcard.querySelector('i').onclick = () => saveBookmark(docID);
                 //Optional: give unique ids to all elements for future use
                 // newcard.querySelector('.card-title').setAttribute("id", "ctitle" + i);
                 // newcard.querySelector('.card-text').setAttribute("id", "ctext" + i);
                 // newcard.querySelector('.card-image').setAttribute("id", "cimage" + i);
+
+                currentUser.get().then(userDoc => {
+                    //get the user name
+                    var bookmarks = userDoc.data().bookmarks;
+                    if (bookmarks.includes(docID)) {
+                       document.getElementById('save-' + docID).innerText = 'bookmark';
+                    }
+                })
 
                 //attach to gallery, Example: "hikes-go-here"
                 document.getElementById(collection + "-go-here").appendChild(newcard);
@@ -113,6 +138,15 @@ function displayCardsDynamically(collection) {
                 //i++;   //Optional: iterate variable to serve as unique ID
             })
         })
-}
+}//displayCardsDynamically("hikes");  //input param is the name of the collection
 
-displayCardsDynamically("hikes");  //input param is the name of the collection
+function saveBookmark(hikeDocID) {
+    currentUser.update({
+        bookmarks: firebase.firestore.FieldValue.arrayUnion(hikeDocID)
+    })
+    .then(function() {
+        console.log("Bookmark saved for " + hikeDocID);
+        let iconID = 'save-' + hikeDocID;
+        document.getElementById(iconID).innerText = "bookmark";
+    })
+}
